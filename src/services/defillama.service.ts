@@ -106,3 +106,78 @@ async function fetchDexVolume(slug: string): Promise<number | null> {
     return null;
   }
 }
+
+// --- Stablecoin flows ---
+
+const StablecoinSchema = z.object({
+  peggedAssets: z.array(
+    z.object({
+      name: z.string(),
+      symbol: z.string(),
+      circulating: z.object({
+        peggedUSD: z.number().optional(),
+      }).optional(),
+      circulatingPrevDay: z.object({
+        peggedUSD: z.number().optional(),
+      }).optional(),
+      circulatingPrevWeek: z.object({
+        peggedUSD: z.number().optional(),
+      }).optional(),
+    }),
+  ),
+});
+
+export interface StablecoinFlow {
+  name: string;
+  symbol: string;
+  circulating: number;
+  change1d: number | null;
+  change7d: number | null;
+}
+
+export interface StablecoinSummary {
+  totalCirculating: number;
+  totalChange1d: number;
+  totalChange7d: number;
+  top: StablecoinFlow[];
+}
+
+export async function getStablecoinFlows(): Promise<StablecoinSummary | null> {
+  try {
+    const res = await fetch(`${config.DEFILLAMA_BASE_URL.replace('api.llama.fi', 'stablecoins.llama.fi')}/stablecoins?includePrices=false`, {
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!res.ok) return null;
+
+    const data = StablecoinSchema.parse(await res.json());
+
+    const flows: StablecoinFlow[] = data.peggedAssets
+      .filter((s) => s.circulating?.peggedUSD && s.circulating.peggedUSD > 100_000_000)
+      .map((s) => {
+        const circ = s.circulating?.peggedUSD ?? 0;
+        const prevDay = s.circulatingPrevDay?.peggedUSD;
+        const prevWeek = s.circulatingPrevWeek?.peggedUSD;
+        return {
+          name: s.name,
+          symbol: s.symbol,
+          circulating: circ,
+          change1d: prevDay ? circ - prevDay : null,
+          change7d: prevWeek ? circ - prevWeek : null,
+        };
+      })
+      .sort((a, b) => b.circulating - a.circulating);
+
+    const totalCirculating = flows.reduce((s, f) => s + f.circulating, 0);
+    const totalChange1d = flows.reduce((s, f) => s + (f.change1d ?? 0), 0);
+    const totalChange7d = flows.reduce((s, f) => s + (f.change7d ?? 0), 0);
+
+    return {
+      totalCirculating,
+      totalChange1d,
+      totalChange7d,
+      top: flows.slice(0, 5),
+    };
+  } catch {
+    return null;
+  }
+}

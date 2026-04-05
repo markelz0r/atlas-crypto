@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { config } from '../../config/env.js';
 import { User } from '../../models/user.model.js';
 import type { BotContext } from '../context.js';
-import { escapeMarkdownV2, sendMarkdownV2 } from '../utils/markdown.js';
+import { escapeHtml, sendFormatted } from '../utils/markdown.js';
 
 const HoldingsSchema = z.object({
   holdings: z.array(
@@ -52,7 +52,6 @@ export async function handlePhoto(ctx: BotContext): Promise<void> {
           ],
         },
       ],
-      temperature: 0,
       response_format: { type: 'json_object' },
     });
 
@@ -105,10 +104,10 @@ export async function handlePhoto(ctx: BotContext): Promise<void> {
 
     await user.save();
 
-    const summary = changes.map((c) => `• ${escapeMarkdownV2(c)}`).join('\n');
-    await sendMarkdownV2(
+    const summary = changes.map((c) => `• ${escapeHtml(c)}`).join('\n');
+    await sendFormatted(
       ctx,
-      `*Portfolio updated\\.*\n\n${summary}\n\n_${escapeMarkdownV2(`${user.portfolio.length} assets tracked.`)}_`,
+      `<b>Portfolio updated.</b>\n\n${summary}\n\n<i>${user.portfolio.length} assets tracked.</i>`,
     );
   } catch (error) {
     clearInterval(typingInterval);

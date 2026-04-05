@@ -1,19 +1,20 @@
 import type { BotContext } from '../context.js';
 
-const ESCAPE_CHARS = /([_*\[\]()~`>#+\-=|{}.!\\])/g;
-
-export function escapeMarkdownV2(text: string): string {
-  return text.replace(ESCAPE_CHARS, '\\$1');
+export function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
 }
 
-export async function sendMarkdownV2(
+export async function sendFormatted(
   ctx: BotContext,
   text: string,
 ): Promise<void> {
   try {
-    await ctx.reply(text, { parse_mode: 'MarkdownV2' });
+    await ctx.reply(text, { parse_mode: 'HTML' });
   } catch {
-    // MarkdownV2 parse failed — send as plain text
-    await ctx.reply(text.replace(/\\([_*\[\]()~`>#+\-=|{}.!])/g, '$1'));
+    // HTML parse failed — strip tags and send as plain text
+    await ctx.reply(text.replace(/<[^>]+>/g, ''));
   }
 }
